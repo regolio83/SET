@@ -1,0 +1,390 @@
+<title>Gara SET di squadra</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=Barlow:wght@400;500;600&display=swap">
+<style>
+/* Layout: tabellone a strisce in alto (come il cartellone del mazziere), tavolo di carte sotto, comandi a portata di pollice */
+:root{
+  --bg:#eef1f5; --table:#dfe5ee; --paper:#ffffff; --ink:#1d2533; --muted:#5b6678; --line:#c6cfdc;
+  --accent:#1f4fa8; --accent-ink:#ffffff; --warn:#b4471a; --good:#1d7a45;
+  --c0:#d42a3c; --c1:#1c9450; --c2:#6a2ea6;
+  --display:"Barlow Condensed","Arial Narrow",system-ui,sans-serif;
+  --body:"Barlow",system-ui,-apple-system,"Segoe UI",sans-serif;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#121722; --table:#1a2130; --paper:#f7f8fa; --ink:#e8ecf3; --muted:#9aa6b8; --line:#2f3a4e;
+  --accent:#6f9cf2; --accent-ink:#0d1320; --warn:#f08a5d; --good:#5ccf8c; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#121722; --table:#1a2130; --paper:#f7f8fa; --ink:#e8ecf3; --muted:#9aa6b8; --line:#2f3a4e;
+  --accent:#6f9cf2; --accent-ink:#0d1320; --warn:#f08a5d; --good:#5ccf8c; color-scheme:dark}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:16px}
+[hidden]{display:none!important}
+.wrap{max-width:1000px;margin:0 auto;display:grid;gap:14px}
+h1{font-family:var(--display);font-size:30px;margin:0;letter-spacing:.01em;text-wrap:balance}
+.top{display:flex;justify-content:space-between;align-items:baseline;gap:10px;flex-wrap:wrap}
+.mode{font-size:13px;color:var(--muted)}
+.mode b{color:var(--ink)}
+button{font:600 15px var(--body);border:0;border-radius:8px;padding:11px 16px;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+button.ghost{background:transparent;color:var(--ink);border:1px solid var(--line)}
+button.warn{background:var(--warn);color:#fff}
+button:disabled{opacity:.4;cursor:default}
+button:focus-visible,.card:focus-visible,select:focus-visible,input:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+input,select{font:16px var(--body);padding:10px;border-radius:8px;border:1px solid var(--line);background:var(--bg);color:var(--ink);width:100%}
+label{display:grid;gap:4px;font-weight:600;font-size:14px}
+.entry{display:grid;gap:12px;max-width:420px}
+.entry .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.board-strip{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--table)}
+.cell{padding:8px 6px;text-align:center;border-right:1px solid var(--line);min-width:0}
+.cell:last-child{border-right:0}
+.cell b{display:block;font:700 32px/1 var(--display);font-variant-numeric:tabular-nums}
+.cell span{font-size:11px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.cell.time b{font-size:40px}
+.cell.neg b{color:var(--warn)}
+.players{display:flex;gap:6px;flex-wrap:wrap;align-items:center;font-size:13px;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border-radius:999px;background:var(--table);color:var(--ink);font-weight:500}
+.dot{width:10px;height:10px;border-radius:50%;display:inline-block}
+.msg{min-height:22px;font-weight:600;text-align:center}
+.msg.bad{color:var(--warn)} .msg.ok{color:var(--good)}
+.table{background:var(--table);border-radius:14px;padding:12px;display:grid;gap:10px;grid-template-columns:repeat(var(--cols,4),minmax(0,1fr))}
+.card{position:relative;background:var(--paper);border:2px solid transparent;border-radius:10px;padding:6px;aspect-ratio:3/2;max-width:100%;cursor:pointer;box-shadow:0 1px 3px #0003;display:flex;align-items:center;justify-content:center;transition:transform .08s}
+.card svg{width:100%;height:100%}
+.card.mine{border-color:var(--accent);transform:translateY(-3px);box-shadow:0 0 0 2px var(--accent)}
+.card .marks{position:absolute;top:4px;right:4px;display:flex;gap:3px}
+.card .marks i{width:12px;height:12px;border-radius:50%;border:2px solid var(--paper)}
+.card.disabled{cursor:default;opacity:.85}
+.controls{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.controls button{flex:0 1 auto;min-width:170px}
+.panel{background:var(--table);border-radius:12px;padding:12px 14px;display:grid;gap:8px}
+.panel h2{font:700 20px var(--display);margin:0}
+.panel p{margin:0;color:var(--muted);font-size:14px;max-width:65ch}
+.res{width:100%;border-collapse:collapse;font-size:14px;font-variant-numeric:tabular-nums}
+.res th,.res td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line)}
+.res-wrap{overflow-x:auto}
+.res td{white-space:nowrap}
+.summary{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:8px}
+.summary div{background:var(--bg);border-radius:8px;padding:8px 10px;min-width:0}
+.summary b{display:block;font:700 26px/1.1 var(--display);font-variant-numeric:tabular-nums}
+.summary .wide{grid-column:1/-1}
+.summary span{font-size:12px;color:var(--muted)}
+.spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;vertical-align:middle}
+.spark i{display:block;width:7px;background:var(--accent);border-radius:2px 2px 0 0;min-height:1px}
+.confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+@media (max-width:620px){
+  .board-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+  .cell:nth-child(3){border-right:0}
+  .cell:nth-child(-n+3){border-bottom:1px solid var(--line)}
+  .table{--cols:3!important;gap:7px;padding:8px}
+  .cell b{font-size:26px}.cell.time b{font-size:32px}
+}
+@media (prefers-reduced-motion:reduce){.card{transition:none}}
+</style>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <pattern id="st0" width="300" height="9" patternUnits="userSpaceOnUse"><rect width="300" height="3.2" fill="#d42a3c"/></pattern>
+    <pattern id="st1" width="300" height="9" patternUnits="userSpaceOnUse"><rect width="300" height="3.2" fill="#1c9450"/></pattern>
+    <pattern id="st2" width="300" height="9" patternUnits="userSpaceOnUse"><rect width="300" height="3.2" fill="#6a2ea6"/></pattern>
+  </defs>
+</svg>
+
+<div class="wrap">
+  <div class="top">
+    <h1>Gara SET di squadra</h1>
+    <div class="mode" id="mode">Modalità: <b>in caricamento…</b></div>
+  </div>
+
+  <section id="entry" class="panel">
+    <h2>Entra nella squadra</h2>
+    <p>Prova di velocità come in semifinale: 6 minuti, 12 carte sul tavolo, +3 carte solo su richiesta della squadra. I primi 5 bonus sono gratuiti, dal 6° ognuno vale −1 SET. Quando il mazzo finisce le carte si rimescolano e si continua.</p>
+    <div class="entry">
+      <div class="row">
+        <label for="team">Squadra
+          <select id="team"><option>1</option><option>2</option><option>3</option><option>4</option><option>5</option><option>6</option></select>
+        </label>
+        <label for="name">Il tuo nome
+          <input id="name" maxlength="16" autocomplete="given-name" placeholder="Es. Giulia">
+        </label>
+      </div>
+      <button id="enter" disabled>Entra</button>
+    </div>
+  </section>
+
+  <section id="game" hidden>
+    <div style="display:grid;gap:12px">
+      <div class="board-strip" aria-live="polite">
+        <div class="cell time"><b id="tTime">06:00</b><span>Tempo</span></div>
+        <div class="cell"><b id="tSets">0</b><span>SET trovati</span></div>
+        <div class="cell"><b id="tBonus">0/5</b><span>Bonus +3</span></div>
+        <div class="cell neg"><b id="tPen">0</b><span>Penalità</span></div>
+        <div class="cell"><b id="tNet">0</b><span>Punteggio</span></div>
+        <div class="cell"><b id="tDeck">81</b><span>Mazzo · <span id="tRes">0</span> rimesc.</span></div>
+      </div>
+      <div class="players" id="players"></div>
+      <div class="msg" id="msg">Premi «Avvia gara» quando la squadra è pronta.</div>
+      <div class="table" id="table"></div>
+      <div class="controls" id="controls">
+        <button id="start">Avvia gara · 6 minuti</button>
+        <button id="bonus" class="ghost">+3 carte</button>
+        <button id="stop" class="ghost">Interrompi</button>
+      </div>
+      <div class="confirm" id="stopConfirm" hidden>
+        <span>Interrompere la gara per tutta la squadra?</span>
+        <button id="stopYes" class="warn">Sì, interrompi</button>
+        <button id="stopNo" class="ghost">No</button>
+      </div>
+      <section class="panel">
+        <h2>Storico e statistiche della squadra</h2>
+        <p>Le medie contano solo le gare completate (6 minuti interi). «Al minuto» indica i SET trovati in ciascuno dei sei minuti.</p>
+        <div class="summary" id="summary"></div>
+        <div class="res-wrap"><table class="res"><thead><tr><th>Data</th><th>Esito</th><th>Durata</th><th>SET</th><th>Bonus</th><th>Penalità</th><th>Punteggio</th><th>Sec/SET</th><th>Al minuto</th><th>Errori</th><th>Rimesc.</th><th>Chi li ha trovati</th></tr></thead><tbody id="results"><tr><td colspan="12">Nessuna gara registrata per questa squadra.</td></tr></tbody></table></div>
+      </section>
+    </div>
+  </section>
+</div>
+
+<script>
+'use strict';
+/* REGOLE-INIZIO (usate anche da server.js) */
+const DURATION=6*60*1000, FREE_BONUS=5, BASE=12, MAX_BOARD=21;
+const ALL=[];for(let c=0;c<3;c++)for(let f=0;f<3;f++)for(let s=0;s<3;s++)for(let n=0;n<3;n++)ALL.push(''+c+f+s+n);
+const isSet=(a,b,c)=>[0,1,2,3].every(i=>(+a[i]+ +b[i]+ +c[i])%3===0);
+const shuffle=a=>{a=a.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a};
+const $=id=>document.getElementById(id);
+const TAB=Math.random().toString(36).slice(2,10);
+const COLORS=['#e07a00','#0f8fa8','#c2338a','#5b8a00','#7a5cff','#a35b2a'];
+
+/* ---------- regole (funzioni pure) ---------- */
+function newGame(now){
+  const deck=shuffle(ALL);
+  return {status:'running',startedAt:now,endsAt:now+DURATION,board:deck.slice(0,BASE),deck:deck.slice(BASE),
+          sets:0,bonus:0,reshuffles:0,errors:0,times:[],by:{},last:{kind:'start',text:'Gara iniziata!'},seq:1};
+}
+function draw(s,k){ // pesca k carte; se il mazzo finisce, rimescola tutte le carte fuori dal tavolo
+  const out=[];
+  while(out.length<k){
+    if(!s.deck.length){
+      const used=new Set([...s.board,...out]);
+      s.deck=shuffle(ALL.filter(x=>!used.has(x)));s.reshuffles++;
+    }
+    out.push(s.deck.shift());
+  }
+  return out;
+}
+function applySet(s,ids,who,now){
+  if(!s||s.status!=='running'||now>=s.endsAt)return {err:'La gara non è in corso.'};
+  if(new Set(ids).size!==3||!ids.every(id=>s.board.includes(id)))return {err:'Carte già prese da un compagno.'};
+  if(!isSet(...ids)){s.errors=(s.errors||0)+1;s.last={kind:'bad',text:`${who}: non è un SET.`};s.seq++;return {s}}
+  s.sets++;const r0=s.reshuffles;(s.times||=[]).push(now-s.startedAt);(s.by||={})[who]=(s.by[who]||0)+1;
+  if(s.board.length>BASE){s.board=s.board.filter(x=>!ids.includes(x))}
+  else{const nw=draw(s,3);s.board=s.board.map(x=>ids.includes(x)?nw.shift():x)}
+  s.last={kind:'ok',text:`${who} ha trovato un SET!`+(s.reshuffles>r0?` Mazzo finito: carte rimescolate (${s.reshuffles}ª volta).`:'')};
+  s.seq++;return {s};
+}
+function applyBonus(s,who,now){
+  if(!s||s.status!=='running'||now>=s.endsAt)return {err:'La gara non è in corso.'};
+  if(s.board.length+3>MAX_BOARD)return {err:'Con 21 carte sul tavolo c’è sempre un SET.'};
+  const r0=s.reshuffles;
+  s.board=s.board.concat(draw(s,3));s.bonus++;
+  const n=s.bonus, pen=n>FREE_BONUS;
+  s.last={kind:pen?'bad':'info',text:`${who} ha chiesto il ${n}° bonus +3 carte`+(pen?' (−1 SET).':'.')+(s.reshuffles>r0?` Mazzo finito: carte rimescolate (${s.reshuffles}ª volta).`:'')};
+  s.seq++;return {s};
+}
+function stats(s){ // statistiche salvate con ogni gara
+  const t=s.times||[], perMin=[0,0,0,0,0,0];for(const x of t)perMin[Math.min(5,Math.floor(x/60000))]++;
+  const durataSec=Math.round((s.elapsed??DURATION)/1000);
+  return {perMinuto:perMin,durataSec,secPerSet:s.sets?Math.round(durataSec/s.sets*10)/10:null,
+    setAlMinuto:durataSec?Math.round(s.sets/durataSec*600)/10:0,errori:s.errors||0,perGiocatore:s.by||{}};
+}
+const penalty=s=>Math.max(0,(s?.bonus||0)-FREE_BONUS);
+function endGame(s,outcome,text,now){
+  if(!s||s.status!=='running')return null;
+  if(outcome==='completata'&&now<s.endsAt)return null;
+  s.status='ended';s.outcome=outcome;s.elapsed=Math.min(DURATION,now-s.startedAt);
+  s.last={kind:'end',text:`${text}! ${s.sets} SET, ${s.bonus} bonus, penalità ${penalty(s)}: punteggio ${s.sets-penalty(s)}.`};s.seq++;
+  return {s,ended:true};
+}
+function reduce(s,a,now){
+  if(a.type==='set')return applySet(s,a.ids,a.who,now);
+  if(a.type==='bonus')return applyBonus(s,a.who,now);
+  if(a.type==='start')return s&&s.status==='running'&&now<s.endsAt?{err:'La gara è già in corso.'}:{s:newGame(now)};
+  if(a.type==='end')return endGame(s,a.outcome,a.text,now);
+  return {err:'Mossa sconosciuta.'};
+}
+const resultOf=(s,team)=>({squadra:team,finishedAt:Date.now(),sets:s.sets,bonus:s.bonus,penalita:penalty(s),punteggio:s.sets-penalty(s),rimescolate:s.reshuffles,esito:s.outcome,...stats(s)});
+/* REGOLE-FINE */
+
+/* ---------- archivio: condiviso (db) o solo questo dispositivo ---------- */
+let useServer=false, db=null, room=null, store=null, team='1', myName='', state=null, mine=new Set(), peers=[], unsubs=[];
+const sleep=ms=>new Promise(r=>setTimeout(r,ms));
+
+function localStore(){
+  let s=null,cb=()=>{};const results=[];let rcb=()=>{};
+  return withAct({
+    subscribe(f){cb=f;f(s)},
+    async update(fn){const ns=fn(s?structuredClone(s):null);if(ns&&ns.s){s=ns.s;cb(s)}return ns},
+    subscribeResults(f){rcb=f;f(results)},
+    async addResult(r){results.unshift(r);rcb(results)}
+  });
+}
+function withAct(st){ // archivio locale o condiviso: la mossa si applica qui
+  st.act=async a=>{const r=await st.update(s=>reduce(s,a,Date.now()));if(r?.ended)await st.addResult(resultOf(r.s,team));return r};
+  return st;
+}
+function sharedStore(t){
+  const doc=db.doc('squadre/s'+t);let cb=()=>{};
+  return withAct({
+    subscribe(f){cb=f;let timer=setTimeout(()=>say('Il tavolo condiviso non risponde ancora: controlla la connessione.','bad'),10000);
+      unsubs.push(doc.onSnapshot(sn=>{if(!sn.metadata.fromCache)clearTimeout(timer);cb(sn.exists?sn.data():null)},e=>{clearTimeout(timer);say('Collegamento al tavolo interrotto: ricarica la pagina.','bad')}))},
+    // ponytail: lease di 1 s per mossa; due mosse quasi simultanee aspettano fino a 1 s. Un server di gioco vero lo eviterebbe.
+    async update(fn){
+      let got=false;
+      for(let i=0;i<14&&!got;i++){const r=await doc.acquire({holder:TAB,ttlMs:1000});got=r.acquired;if(!got)await sleep(80+Math.random()*80)}
+      if(!got)return {err:'Tavolo occupato, riprova.'};
+      const sn=await doc.get();const ns=fn(sn.exists?structuredClone(sn.data()):null);
+      if(ns&&ns.s)await doc.set(ns.s);
+      return ns;
+    },
+    subscribeResults(f){
+      const q=db.collection('risultati').where('squadra','==',t).orderBy('finishedAt','desc').limit(50);
+      unsubs.push(q.onSnapshot(sn=>f(sn.docs.map(d=>d.data())),()=>{}));
+    },
+    async addResult(r){await db.collection('risultati').add(r)}
+  });
+}
+function serverStore(t){ // versione con server.js: il server applica le mosse e avvisa tutti
+  let es=null;const post=b=>fetch('api/act',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({team:t,id:TAB,...b})}).then(r=>r.json()).catch(()=>({err:'Server non raggiungibile.'}));
+  const open=(fs,fr)=>{es=new EventSource(`api/events?team=${encodeURIComponent(t)}&id=${TAB}&name=${encodeURIComponent(myName)}`);
+    es.addEventListener('state',e=>fs(JSON.parse(e.data)));es.addEventListener('results',e=>fr(JSON.parse(e.data)));
+    es.addEventListener('peers',e=>{peers=JSON.parse(e.data).map(p=>({peer:p.id,sameTab:p.id===TAB,kind:'viewer',presence:{name:p.name,sel:p.sel}}));render()});
+    es.onerror=()=>say('Collegamento al server interrotto: riprovo…','bad')};
+  let fs=null;
+  return {subscribe(f){fs=f},subscribeResults(fr){open(fs,fr)},act:a=>post({action:a}),sel:ids=>post({sel:ids})};
+}
+
+/* ---------- carte ---------- */
+const SHAPES=[
+  'M0,30 A30,30 0 0 1 60,30 L60,120 A30,30 0 0 1 0,120 Z',                                  // ovale
+  'M30,0 L60,75 L30,150 L0,75 Z',                                                              // rombo
+  'M16,6 C38,-6 64,10 52,40 C44,62 56,84 56,106 C56,136 34,156 14,144 C-4,134 6,108 8,92 C10,70 -4,54 2,32 C4,20 8,10 16,6 Z' // onda
+];
+const HEX=['#d42a3c','#1c9450','#6a2ea6'], NAMES_C=['rosso','verde','viola'], NAMES_F=['pieno','a righe','vuoto'], NAMES_S=['ovale','rombo','onda'];
+function cardSVG(id){
+  const [c,f,s,n]=id.split('').map(Number), k=n+1, gap=78, x0=150-(k-1)*gap/2-30;
+  const fill=f===0?HEX[c]:f===1?`url(#st${c})`:'none';
+  let g='';for(let i=0;i<k;i++)g+=`<path transform="translate(${x0+i*gap},25)" d="${SHAPES[s]}" fill="${fill}" stroke="${HEX[c]}" stroke-width="5" stroke-linejoin="round"/>`;
+  return `<svg viewBox="0 0 300 200" role="img" aria-label="${k} ${NAMES_S[s]} ${NAMES_C[c]} ${NAMES_F[f]}">${g}</svg>`;
+}
+
+/* ---------- interfaccia ---------- */
+function say(t,kind){const m=$('msg');m.textContent=t;m.className='msg'+(kind?' '+kind:'')}
+const fmt=ms=>{const sec=Math.max(0,Math.ceil(ms/1000));return String(Math.floor(sec/60)).padStart(2,'0')+':'+String(sec%60).padStart(2,'0')};
+const colorOf=peer=>{const i=peers.filter(p=>!p.sameTab).findIndex(p=>p.peer===peer);return COLORS[(i<0?0:i)%COLORS.length]};
+
+function render(){
+  const s=state, running=s&&s.status==='running'&&Date.now()<s.endsAt;
+  $('tSets').textContent=s?.sets??0;
+  $('tBonus').textContent=(s?.bonus??0)+'/'+FREE_BONUS;
+  $('tPen').textContent=penalty(s)?'−'+penalty(s):'0';
+  $('tNet').textContent=s?(s.sets-penalty(s)):0;
+  $('tDeck').textContent=s?s.deck.length:81;
+  $('tRes').textContent=s?.reshuffles??0;
+  $('start').hidden=!!running; $('stop').hidden=!running; $('bonus').disabled=!running;
+  if(!running)$('stopConfirm').hidden=true;
+  const nb=(s?.bonus??0)+1;
+  $('bonus').textContent=nb>FREE_BONUS?`+3 carte · ${nb}° bonus (−1 SET)`:`+3 carte · bonus gratis (${nb}/${FREE_BONUS})`;
+  $('bonus').className=nb>FREE_BONUS?'warn':'ghost';
+  $('start').textContent=s?'Nuova gara · 6 minuti':'Avvia gara · 6 minuti';
+  if(s?.last)say(s.last.text,s.last.kind==='bad'?'bad':s.last.kind==='ok'?'ok':'');
+  for(const id of [...mine])if(!s||!s.board.includes(id))mine.delete(id);
+  const tb=$('table');const board=s?s.board:[];
+  tb.style.setProperty('--cols',String(Math.max(4,Math.ceil(board.length/3))));
+  tb.replaceChildren(...board.map(id=>{
+    const b=document.createElement('button');b.className='card'+(mine.has(id)?' mine':'')+(running?'':' disabled');
+    b.innerHTML=cardSVG(id);b.dataset.id=id;b.setAttribute('aria-pressed',mine.has(id));
+    const marks=document.createElement('span');marks.className='marks';
+    for(const p of peers){if(p.sameTab||!Array.isArray(p.presence?.sel)||!p.presence.sel.includes(id))continue;const i=document.createElement('i');i.style.background=colorOf(p.peer);i.title=String(p.presence.name||'');marks.append(i)}
+    b.append(marks);b.onclick=()=>pick(id);return b;
+  }));
+  if(!board.length){const p=document.createElement('p');p.style.gridColumn='1/-1';p.style.textAlign='center';p.style.color='var(--muted)';p.textContent='Il tavolo è vuoto: avviate la gara per scoprire 12 carte.';tb.append(p)}
+  renderPlayers();tick();
+}
+function renderPlayers(){
+  const box=$('players');box.replaceChildren('Giocatori:');
+  const list=peers.length?peers:[{sameTab:true,peer:TAB,presence:{name:myName}}];
+  for(const p of list){const c=document.createElement('span');c.className='chip';const d=document.createElement('span');d.className='dot';d.style.background=p.sameTab?'var(--accent)':colorOf(p.peer);c.append(d,document.createTextNode(String(p.presence?.name||'Senza nome')+(p.sameTab?' (tu)':'')));box.append(c)}
+}
+function tick(){
+  const s=state;
+  if(!s){$('tTime').textContent='06:00';return}
+  $('tTime').textContent=s.status==='running'?fmt(s.endsAt-Date.now()):'00:00';
+  if(s.status==='running'&&Date.now()>=s.endsAt&&!tick.busy)finish('Tempo scaduto','completata');
+}
+async function finish(text,outcome){
+  if(useServer&&outcome==='completata')return; // il server chiude da solo la gara allo scadere
+  tick.busy=true;try{await store.act({type:'end',outcome,text})}finally{tick.busy=false}
+}
+function sendSel(){if(useServer)store?.sel([...mine]);else room?.presence({name:myName,sel:[...mine]}).catch(()=>{})}
+async function pick(id){
+  if(!state||state.status!=='running'||Date.now()>=state.endsAt)return;
+  mine.has(id)?mine.delete(id):mine.size<3&&mine.add(id);
+  sendSel();render();
+  if(mine.size===3){
+    const ids=[...mine];
+    const r=await store.act({type:'set',ids,who:myName}).catch(()=>({err:'Errore di rete, riprova.'}));
+    mine.clear();sendSel();
+    if(r?.err)say(r.err,'bad');
+    render();
+  }
+}
+$('bonus').onclick=async()=>{const r=await store.act({type:'bonus',who:myName});if(r?.err)say(r.err,'bad')};
+$('start').onclick=async()=>{mine.clear();sendSel();const r=await store.act({type:'start'});if(r?.err)say(r.err,'bad')};
+$('stop').onclick=()=>{$('stopConfirm').hidden=false};
+$('stopNo').onclick=()=>{$('stopConfirm').hidden=true};
+$('stopYes').onclick=()=>{$('stopConfirm').hidden=true;finish('Gara interrotta','interrotta')};
+
+function renderResults(rows){
+  const tb=$('results');tb.replaceChildren();
+  const done=rows.filter(r=>r.esito==='completata'), avg=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null, f1=x=>x==null?'–':String(Math.round(x*10)/10).replace('.',',');
+  const pm=[0,1,2,3,4,5].map(i=>avg(done.map(r=>(r.perMinuto||[])[i]||0)));
+  const tiles=[[String(rows.length),'gare giocate'],[String(done.length),'completate'],[f1(avg(done.map(r=>r.punteggio))),'punteggio medio'],
+    [done.length?String(Math.max(...done.map(r=>r.punteggio))):'–','record'],[f1(avg(done.filter(r=>r.secPerSet).map(r=>r.secPerSet))),'secondi per SET (media)'],
+    [f1(avg(done.map(r=>r.bonus))),'bonus medi'],[done.length?pm.map(f1).join(' · '):'–','SET medi per minuto (1°→6°)']];
+  $('summary').replaceChildren(...tiles.map(([v,l])=>{const d=document.createElement('div'),b=document.createElement('b'),sp=document.createElement('span');b.textContent=v;sp.textContent=l;d.append(b,sp);if(l.startsWith('SET medi'))d.className='wide';return d}));
+  if(!rows.length){tb.innerHTML='<tr><td colspan="12">Nessuna gara registrata per questa squadra.</td></tr>';return}
+  for(const r of rows){const tr=document.createElement('tr');
+    const dur=r.durataSec!=null?fmt(r.durataSec*1000):'–';
+    const cells=[new Date(r.finishedAt).toLocaleString('it-IT',{dateStyle:'short',timeStyle:'short'}),r.esito,dur,r.sets,r.bonus,r.penalita?'−'+r.penalita:'0',r.punteggio,r.secPerSet==null?'–':f1(r.secPerSet),null,r.errori??'–',r.rimescolate,
+      Object.entries(r.perGiocatore||{}).sort((a,b)=>b[1]-a[1]).map(([n,c])=>n+' '+c).join(', ')||'–'];
+    for(const v of cells){const td=document.createElement('td');
+      if(v===null){const sp=document.createElement('span');sp.className='spark';const per=r.perMinuto||[];const mx=Math.max(1,...per);
+        sp.title='SET al minuto: '+per.join(', ');for(const x of per){const i=document.createElement('i');i.style.height=(x/mx*100)+'%';sp.append(i)}td.append(sp)}
+      else td.textContent=String(v);tr.append(td)}
+    tb.append(tr)}
+}
+
+$('enter').onclick=async()=>{
+  myName=$('name').value.trim()||'Giocatore';team=$('team').value;
+  try{localStorage.setItem('gara-set',JSON.stringify({name:myName,team}))}catch{}
+  $('entry').hidden=true;$('game').hidden=false;
+  store=useServer?serverStore(team):db?sharedStore(team):localStore();
+  if(room&&!useServer){
+    try{const r=await room.join('squadra-'+team);room=r;
+      r.onPeers(ch=>{peers=ch.peers.filter(p=>p.kind==='viewer');render()},()=>{});
+      r.presence({name:myName,sel:[]}).catch(()=>{});
+    }catch{room=null}
+  }
+  store.subscribe(s=>{state=s;render()});
+  store.subscribeResults(renderResults);
+  render();
+};
+try{const saved=JSON.parse(localStorage.getItem('gara-set')||'null');if(saved){$('name').value=saved.name||'';$('team').value=saved.team||'1'}}catch{}
+setInterval(tick,250);
+
+(async()=>{
+  const use=window.claude?.use;
+  if(use){[db,room]=await Promise.all([use('db').catch(()=>null),use('room').catch(()=>null)])}
+  else if(location.protocol.startsWith('http'))useServer=await fetch('api/ping').then(r=>r.ok).catch(()=>false);
+  $('enter').disabled=false;
+  $('mode').innerHTML=useServer?'Modalità: <b>squadra condivisa</b> · ogni compagno apre questo indirizzo sul suo dispositivo':db?'Modalità: <b>squadra condivisa</b> · ogni compagno apre questa pagina sul suo dispositivo':'Modalità: <b>solo questo dispositivo</b>';
+})();
+</script>
