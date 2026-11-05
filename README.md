@@ -1,6 +1,11 @@
 # Gara SET di squadra: versione con server
 
-La cartella contiene tutto: `server.js`, `gara-semifinale.html` e `package.json`. Non servono account né librerie: basta Node.js (versione 18 o più recente).
+Allenamento a SET per squadre, su più dispositivi in tempo reale:
+
+- **Gara 6 minuti**: la prova di velocità della semifinale (12 carte, +3 carte su richiesta, dal 6° bonus −1 SET, rimescolo a fine mazzo), con storico e statistiche della squadra.
+- **Quesiti**: i tipi di quesito delle prove di selezione, da risolvere insieme sullo stesso tavolo: trova i SET, elimina i SET, carte coperte, carte solitarie. Ogni proposta è visibile a tutta la squadra, la verifica è automatica e si può chiedere una soluzione.
+
+La cartella contiene tutto: `server.js`, `gara-semifinale.html`, `package.json` e `test.js`. Non servono account né librerie: basta Node.js (versione 18 o più recente).
 
 ## Provarla su un computer
 
@@ -8,6 +13,10 @@ La cartella contiene tutto: `server.js`, `gara-semifinale.html` e `package.json`
 2. Apri http://localhost:3000 nel browser.
 3. Gli altri dispositivi collegati alla stessa rete Wi-Fi aprono `http://<indirizzo-del-computer>:3000`. Su Mac l'indirizzo si trova in Impostazioni › Wi-Fi › Dettagli.
 4. Ognuno sceglie la stessa squadra e scrive il proprio nome.
+
+## Controllo delle regole
+
+`node test.js` verifica le regole della gara e dei quesiti (deve stampare «Tutti i controlli sono passati»).
 
 ## Metterla online (per esempio su Render, come l'app di Daniela)
 

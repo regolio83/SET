@@ -69,6 +69,25 @@ label{display:grid;gap:4px;font-weight:600;font-size:14px}
 .spark{display:inline-flex;align-items:flex-end;gap:2px;height:22px;vertical-align:middle}
 .spark i{display:block;width:7px;background:var(--accent);border-radius:2px 2px 0 0;min-height:1px}
 .confirm{display:flex;gap:8px;align-items:center;flex-wrap:wrap;justify-content:center}
+#game{display:grid;gap:12px}
+#qView{display:grid;gap:12px}
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--line)}
+.tab{background:transparent;color:var(--muted);border-radius:8px 8px 0 0;padding:10px 16px}
+.tab[aria-selected="true"]{background:var(--table);color:var(--ink)}
+.qtypes{display:flex;gap:8px;flex-wrap:wrap}
+.qtypes button.on{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.qprompt{margin:0;font:600 19px/1.35 var(--body);max-width:70ch;text-wrap:balance}
+.card.removed{opacity:.22}
+.card.cover{border:2px dashed var(--muted);background:var(--table);font:700 40px var(--display);color:var(--muted);cursor:default}
+.card.cover svg{opacity:.9}
+.found{display:flex;flex-wrap:wrap;gap:8px}
+.found .fs{display:flex;gap:3px;background:var(--table);padding:4px;border-radius:8px}
+.found .fs svg{width:54px;height:36px;background:var(--paper);border-radius:4px}
+.build{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.slot{background:var(--table);border-radius:10px;padding:10px;display:grid;gap:8px;min-width:0}
+.slot .pv{background:var(--paper);border-radius:8px;aspect-ratio:3/2;max-width:180px;width:100%;display:flex;align-items:center;justify-content:center;color:var(--muted);font:700 32px var(--display)}
+.slot .sel{display:grid;grid-template-columns:1fr 1fr;gap:6px}
+.slot select{padding:7px;font-size:14px}
 @media (max-width:620px){
   .board-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
   .cell:nth-child(3){border-right:0}
@@ -110,7 +129,12 @@ label{display:grid;gap:4px;font-weight:600;font-size:14px}
   </section>
 
   <section id="game" hidden>
-    <div style="display:grid;gap:12px">
+    <div class="tabs" role="tablist">
+      <button id="tabGara" class="tab" role="tab" aria-selected="true">Gara 6 minuti</button>
+      <button id="tabQ" class="tab" role="tab" aria-selected="false">Quesiti</button>
+    </div>
+    <div class="players" id="players"></div>
+    <div id="garaView" style="display:grid;gap:12px">
       <div class="board-strip" aria-live="polite">
         <div class="cell time"><b id="tTime">06:00</b><span>Tempo</span></div>
         <div class="cell"><b id="tSets">0</b><span>SET trovati</span></div>
@@ -119,7 +143,6 @@ label{display:grid;gap:4px;font-weight:600;font-size:14px}
         <div class="cell"><b id="tNet">0</b><span>Punteggio</span></div>
         <div class="cell"><b id="tDeck">81</b><span>Mazzo · <span id="tRes">0</span> rimesc.</span></div>
       </div>
-      <div class="players" id="players"></div>
       <div class="msg" id="msg">Premi «Avvia gara» quando la squadra è pronta.</div>
       <div class="table" id="table"></div>
       <div class="controls" id="controls">
@@ -138,6 +161,24 @@ label{display:grid;gap:4px;font-weight:600;font-size:14px}
         <div class="summary" id="summary"></div>
         <div class="res-wrap"><table class="res"><thead><tr><th>Data</th><th>Esito</th><th>Durata</th><th>SET</th><th>Bonus</th><th>Penalità</th><th>Punteggio</th><th>Sec/SET</th><th>Al minuto</th><th>Errori</th><th>Rimesc.</th><th>Chi li ha trovati</th></tr></thead><tbody id="results"><tr><td colspan="12">Nessuna gara registrata per questa squadra.</td></tr></tbody></table></div>
       </section>
+    </div>
+    <div id="qView" hidden>
+      <div class="qtypes">
+        <button data-q="trova" class="ghost">Trova i SET</button>
+        <button data-q="elimina" class="ghost">Elimina i SET</button>
+        <button data-q="mancante" class="ghost">Carte coperte</button>
+        <button data-q="solitarie" class="ghost">Carte solitarie</button>
+      </div>
+      <p class="qprompt" id="qPrompt">Scegliete un tipo di quesito: tutta la squadra vede lo stesso tavolo e le stesse proposte.</p>
+      <div class="msg" id="qMsg"></div>
+      <div class="table" id="qTable"></div>
+      <div class="found" id="qFound"></div>
+      <div class="build" id="qBuild"></div>
+      <div class="controls">
+        <button id="qCheck">Verifica</button>
+        <button id="qSol" class="ghost">Mostra una soluzione</button>
+        <button id="qNext" class="ghost">Nuovo quesito</button>
+      </div>
     </div>
   </section>
 </div>
@@ -206,11 +247,82 @@ function endGame(s,outcome,text,now){
 function reduce(s,a,now){
   if(a.type==='set')return applySet(s,a.ids,a.who,now);
   if(a.type==='bonus')return applyBonus(s,a.who,now);
-  if(a.type==='start')return s&&s.status==='running'&&now<s.endsAt?{err:'La gara è già in corso.'}:{s:newGame(now)};
+  if(a.type==='start')return s&&s.status==='running'&&now<s.endsAt?{err:'La gara è già in corso.'}:{s:{...newGame(now),q:s?.q||null}};
+  if(String(a.type).startsWith('q-'))return reduceQ(s,a);
   if(a.type==='end')return endGame(s,a.outcome,a.text,now);
   return {err:'Mossa sconosciuta.'};
 }
 const resultOf=(s,team)=>({squadra:team,finishedAt:Date.now(),sets:s.sets,bonus:s.bonus,penalita:penalty(s),punteggio:s.sets-penalty(s),rimescolate:s.reshuffles,esito:s.outcome,...stats(s)});
+
+/* ---------- quesiti della selezione locale ---------- */
+const QTYPES=['trova','elimina','mancante','solitarie'];
+const deal=k=>shuffle(ALL).slice(0,k);
+function setsOf(t){const r=[];for(let i=0;i<t.length;i++)for(let j=i+1;j<t.length;j++)for(let k=j+1;k<t.length;k++)if(isSet(t[i],t[j],t[k]))r.push([t[i],t[j],t[k]]);return r}
+const third=(a,b)=>[0,1,2,3].map(i=>(6-a[i]-b[i])%3).join('');
+function combos(arr,k,ok){const c=[];const rec=st=>{if(c.length===k)return ok(c)?c.slice():null;for(let i=st;i<arr.length;i++){c.push(arr[i]);const r=rec(i+1);c.pop();if(r)return r}return null};return rec(0)}
+// carte di t che non stanno in nessun SET formato con le carte di all
+const lonely=(t,all=t)=>{const A=new Set(all);return t.filter(x=>!all.some(y=>y!==x&&A.has(third(x,y))))};
+function minRemove(t){const S=setsOf(t);for(let k=1;k<=t.length;k++){const r=combos(t,k,c=>S.every(s=>s.some(x=>c.includes(x))));if(r)return r}return []}
+function minAdd(t,maxK){const cand=ALL.filter(x=>!t.includes(x));for(let k=1;k<=maxK;k++){const r=combos(cand,k,c=>!lonely(t,t.concat(c)).length);if(r)return r}return null}
+function genQ(type){
+  for(;;){
+    if(type==='trova'){const t=deal(12),n=setsOf(t).length;if(n>=4&&n<=8)return {type,table:t,n,found:[]}}
+    if(type==='elimina'){const t=deal(12),n=setsOf(t).length;if(n>=6){const sol=minRemove(t);return {type,table:t,n,min:sol.length,sol,removed:[]}}}
+    if(type==='mancante'){const k=Math.random()<.5?1:2,t=deal(12),n=setsOf(t).length;if(n>=3&&n<=8)return {type,table:t.slice(0,12-k),k,n,sol:t.slice(12-k),prop:Array(k).fill(null)}}
+    if(type==='solitarie'){const t=deal(12),L=lonely(t);if(L.length>=2&&L.length<=5){const sol=minAdd(t,2);if(sol)return {type,table:t,n:L.length,min:sol.length,sol,prop:[null,null,null]}}}
+  }
+}
+function checkQ(q){
+  const props=(q.prop||[]).filter(Boolean), bad=t=>({kind:'bad',text:t}), good=t=>({kind:'ok',text:t}), info=t=>({kind:'info',text:t});
+  const clash=()=>new Set(props).size!==props.length||props.some(x=>q.table.includes(x));
+  if(q.type==='elimina'){
+    if(!q.removed.length)return bad('Togliete almeno una carta.');
+    const c=setsOf(q.table.filter(x=>!q.removed.includes(x))).length;
+    if(c)return bad(`Restano ancora ${c} SET.`);
+    return q.removed.length>q.min?info(`Nessun SET rimasto con ${q.removed.length} carte tolte, ma ne bastavano ${q.min}.`):good(`Esatto: ${q.min} carte, il minimo possibile.`);
+  }
+  if(q.type==='mancante'){
+    if(props.length<q.k)return bad(q.k===1?'Costruite la carta coperta.':'Costruite tutte e due le carte coperte.');
+    if(clash())return bad('Le carte coperte devono essere diverse tra loro e da quelle sul tavolo.');
+    const c=setsOf(q.table.concat(props)).length;
+    return c===q.n?good(`Corretto: con queste carte i SET sono proprio ${q.n}.`):bad(`Con queste carte i SET sarebbero ${c}, non ${q.n}.`);
+  }
+  if(q.type==='solitarie'){
+    if(!props.length)return bad('Aggiungete almeno una carta.');
+    if(clash())return bad('Le carte aggiunte devono essere diverse tra loro e da quelle sul tavolo.');
+    const L=lonely(q.table,q.table.concat(props)).length;
+    if(L)return bad(L===1?'Una carta del tavolo non è ancora in nessun SET.':`${L} carte del tavolo non sono ancora in nessun SET.`);
+    return props.length>q.min?info(`Funziona, ma bastavano ${q.min} carte.`):good(`Esatto: ${q.min} ${q.min===1?'carta':'carte'}, il minimo possibile.`);
+  }
+  return null;
+}
+function reduceQ(s,a){
+  s=s||{};const who=String(a.who||'');
+  if(a.type==='q-new'){if(!QTYPES.includes(a.qtype))return {err:'Quesito sconosciuto.'};s.q={...genQ(a.qtype),id:(s.q?.id||0)+1,res:null,shown:false};return {s}}
+  const q=s.q;if(!q)return {err:'Scegliete prima un quesito.'};
+  if(a.type==='q-find'){
+    const ids=Array.isArray(a.ids)?a.ids.map(String):[];
+    if(q.type!=='trova'||new Set(ids).size!==3||!ids.every(x=>q.table.includes(x)))return {err:'Selezione non valida.'};
+    const key=ids.slice().sort();
+    if(!isSet(...key))q.res={kind:'bad',text:`${who}: non è un SET.`};
+    else if(q.found.some(f=>f.join()===key.join()))q.res={kind:'info',text:'Questo SET l’avete già trovato.'};
+    else{q.found.push(key);q.res=q.found.length===q.n?{kind:'ok',text:`Avete trovato tutti i ${q.n} SET!`}:{kind:'ok',text:`${who} ha trovato un SET (${q.found.length} su ${q.n}).`}}
+    return {s};
+  }
+  if(a.type==='q-toggle'){const id=String(a.id);if(q.type!=='elimina'||!q.table.includes(id))return {err:'Carta non valida.'};
+    q.removed=q.removed.includes(id)?q.removed.filter(x=>x!==id):q.removed.concat(id);q.res=null;return {s}}
+  if(a.type==='q-prop'){const i=a.i|0,id=a.id==null?null:String(a.id);if(!q.prop||i<0||i>=q.prop.length||(id!==null&&!ALL.includes(id)))return {err:'Proposta non valida.'};
+    q.prop[i]=id;q.res=null;return {s}}
+  if(a.type==='q-check'){q.res=checkQ(q);return {s}}
+  if(a.type==='q-sol'){q.shown=true;
+    if(q.type==='trova'){q.found=setsOf(q.table).map(x=>x.slice().sort());q.res={kind:'info',text:`Ecco tutti i ${q.n} SET.`}}
+    if(q.type==='elimina'){q.removed=q.sol.slice();q.res={kind:'info',text:`Una soluzione: togliere ${q.min} carte.`}}
+    if(q.type==='mancante'){q.prop=q.sol.slice();q.res={kind:'info',text:'Ecco le carte che erano coperte (vanno bene anche altre carte che danno lo stesso numero di SET).'}}
+    if(q.type==='solitarie'){q.prop=q.sol.concat([null,null,null]).slice(0,3);q.res={kind:'info',text:`Una soluzione con ${q.min} ${q.min===1?'carta':'carte'}.`}}
+    return {s};
+  }
+  return {err:'Mossa sconosciuta.'};
+}
 /* REGOLE-FINE */
 
 /* ---------- archivio: condiviso (db) o solo questo dispositivo ---------- */
@@ -285,18 +397,18 @@ function render(){
   $('tSets').textContent=s?.sets??0;
   $('tBonus').textContent=(s?.bonus??0)+'/'+FREE_BONUS;
   $('tPen').textContent=penalty(s)?'−'+penalty(s):'0';
-  $('tNet').textContent=s?(s.sets-penalty(s)):0;
-  $('tDeck').textContent=s?s.deck.length:81;
+  $('tNet').textContent=(s?.sets??0)-penalty(s);
+  $('tDeck').textContent=s?.deck?.length??81;
   $('tRes').textContent=s?.reshuffles??0;
   $('start').hidden=!!running; $('stop').hidden=!running; $('bonus').disabled=!running;
   if(!running)$('stopConfirm').hidden=true;
   const nb=(s?.bonus??0)+1;
   $('bonus').textContent=nb>FREE_BONUS?`+3 carte · ${nb}° bonus (−1 SET)`:`+3 carte · bonus gratis (${nb}/${FREE_BONUS})`;
   $('bonus').className=nb>FREE_BONUS?'warn':'ghost';
-  $('start').textContent=s?'Nuova gara · 6 minuti':'Avvia gara · 6 minuti';
+  $('start').textContent=s?.status?'Nuova gara · 6 minuti':'Avvia gara · 6 minuti';
   if(s?.last)say(s.last.text,s.last.kind==='bad'?'bad':s.last.kind==='ok'?'ok':'');
-  for(const id of [...mine])if(!s||!s.board.includes(id))mine.delete(id);
-  const tb=$('table');const board=s?s.board:[];
+  for(const id of [...mine])if(!(s?.board||[]).includes(id)&&!(s?.q?.table||[]).includes(id))mine.delete(id);
+  const tb=$('table');const board=s?.board||[];
   tb.style.setProperty('--cols',String(Math.max(4,Math.ceil(board.length/3))));
   tb.replaceChildren(...board.map(id=>{
     const b=document.createElement('button');b.className='card'+(mine.has(id)?' mine':'')+(running?'':' disabled');
@@ -306,7 +418,7 @@ function render(){
     b.append(marks);b.onclick=()=>pick(id);return b;
   }));
   if(!board.length){const p=document.createElement('p');p.style.gridColumn='1/-1';p.style.textAlign='center';p.style.color='var(--muted)';p.textContent='Il tavolo è vuoto: avviate la gara per scoprire 12 carte.';tb.append(p)}
-  renderPlayers();tick();
+  renderPlayers();tick();renderQ();
 }
 function renderPlayers(){
   const box=$('players');box.replaceChildren('Giocatori:');
@@ -315,7 +427,7 @@ function renderPlayers(){
 }
 function tick(){
   const s=state;
-  if(!s){$('tTime').textContent='06:00';return}
+  if(!s?.status){$('tTime').textContent='06:00';return}
   $('tTime').textContent=s.status==='running'?fmt(s.endsAt-Date.now()):'00:00';
   if(s.status==='running'&&Date.now()>=s.endsAt&&!tick.busy)finish('Tempo scaduto','completata');
 }
@@ -325,6 +437,7 @@ async function finish(text,outcome){
 }
 function sendSel(){if(useServer)store?.sel([...mine]);else room?.presence({name:myName,sel:[...mine]}).catch(()=>{})}
 async function pick(id){
+  if(view==='quesiti')return qpick(id);
   if(!state||state.status!=='running'||Date.now()>=state.endsAt)return;
   mine.has(id)?mine.delete(id):mine.size<3&&mine.add(id);
   sendSel();render();
@@ -339,6 +452,68 @@ async function pick(id){
 $('bonus').onclick=async()=>{const r=await store.act({type:'bonus',who:myName});if(r?.err)say(r.err,'bad')};
 $('start').onclick=async()=>{mine.clear();sendSel();const r=await store.act({type:'start'});if(r?.err)say(r.err,'bad')};
 $('stop').onclick=()=>{$('stopConfirm').hidden=false};
+
+/* ---------- quesiti: interfaccia ---------- */
+let view='gara', qBuilt='', qLast=[];
+const ATTR=[['Colore',NAMES_C],['Riempimento',NAMES_F],['Forma',NAMES_S],['Numero',['1','2','3']]];
+const qact=a=>store.act({...a,who:myName}).then(r=>{if(r?.err)say2(r.err,'bad');return r});
+function say2(t,kind){const m=$('qMsg');m.textContent=t||'';m.className='msg'+(kind&&kind!=='info'?' '+kind:'')}
+function setView(v){view=v;mine.clear();sendSel();$('tabGara').setAttribute('aria-selected',v==='gara');$('tabQ').setAttribute('aria-selected',v==='quesiti');
+  $('garaView').hidden=v!=='gara';$('qView').hidden=v!=='quesiti';render()}
+$('tabGara').onclick=()=>setView('gara');$('tabQ').onclick=()=>setView('quesiti');
+for(const b of document.querySelectorAll('.qtypes button'))b.onclick=()=>{mine.clear();sendSel();qact({type:'q-new',qtype:b.dataset.q})};
+$('qNext').onclick=()=>{const q=state?.q;if(q){mine.clear();sendSel();qact({type:'q-new',qtype:q.type})}};
+$('qCheck').onclick=()=>qact({type:'q-check'});
+$('qSol').onclick=()=>qact({type:'q-sol'});
+async function qpick(id){
+  const q=state?.q;if(!q)return;
+  if(q.type==='elimina')return qact({type:'q-toggle',id});
+  if(q.type!=='trova')return;
+  mine.has(id)?mine.delete(id):mine.size<3&&mine.add(id);sendSel();render();
+  if(mine.size===3){const ids=[...mine];mine.clear();sendSel();await qact({type:'q-find',ids});render()}
+}
+function qPromptText(q){
+  if(q.type==='trova')return `Su queste 12 carte ci sono esattamente ${q.n} SET. Trovateli tutti.`;
+  if(q.type==='elimina')return `Sul tavolo ci sono ${q.n} SET. Togliete il minor numero di carte perché non ne resti nessuno (toccate una carta per toglierla o rimetterla).`;
+  if(q.type==='mancante')return `Su questo tavolo di 12 carte ci sono esattamente ${q.n} SET, ma ${q.k===1?'una carta è coperta. Ricostruite la carta coperta':'2 carte sono coperte. Ricostruite le carte coperte'}.`;
+  return 'Alcune carte non fanno parte di nessun SET. Aggiungete il minor numero di carte perché ogni carta del tavolo stia in almeno un SET.';
+}
+function cardBtn(id,extra){
+  const b=document.createElement('button');b.className='card'+(extra||'');b.innerHTML=cardSVG(id);b.dataset.id=id;
+  const marks=document.createElement('span');marks.className='marks';
+  for(const p of peers){if(p.sameTab||!Array.isArray(p.presence?.sel)||!p.presence.sel.includes(id))continue;const i=document.createElement('i');i.style.background=colorOf(p.peer);i.title=String(p.presence.name||'');marks.append(i)}
+  b.append(marks);b.onclick=()=>pick(id);return b;
+}
+function renderQ(){
+  if(view!=='quesiti')return;
+  const q=state?.q;
+  for(const b of document.querySelectorAll('.qtypes button'))b.classList.toggle('on',q?.type===b.dataset.q);
+  $('qCheck').hidden=!q||q.type==='trova';$('qSol').hidden=!q;$('qNext').hidden=!q;
+  if(!q){$('qTable').replaceChildren();$('qFound').replaceChildren();$('qBuild').replaceChildren();say2('');qBuilt='';return}
+  $('qPrompt').textContent=qPromptText(q);
+  say2(q.res?.text||'',q.res?.kind);
+  const cards=q.table.map(id=>cardBtn(id,(mine.has(id)?' mine':'')+(q.type==='elimina'&&q.removed.includes(id)?' removed':'')+(q.type==='mancante'||q.type==='solitarie'?' disabled':'')));
+  if(q.type==='mancante')q.prop.forEach(id=>{const c=document.createElement('div');c.className='card cover';if(id)c.innerHTML=cardSVG(id);else c.textContent='?';cards.push(c)});
+  const tb=$('qTable');tb.style.setProperty('--cols','4');tb.replaceChildren(...cards);
+  const fd=$('qFound');fd.replaceChildren();
+  if(q.type==='trova')for(const f of q.found){const d=document.createElement('div');d.className='fs';d.innerHTML=f.map(cardSVG).join('');fd.append(d)}
+  // costruttore di carte: creato una volta per quesito, poi aggiornato solo dove un compagno ha cambiato la proposta
+  const bd=$('qBuild');const key=q.id+':'+q.type;
+  if(!q.prop){bd.replaceChildren();qBuilt=key;return}
+  if(qBuilt!==key){qBuilt=key;qLast=q.prop.map(()=>undefined);bd.replaceChildren(...q.prop.map((_,i)=>{
+    const sl=document.createElement('div');sl.className='slot';
+    const h=document.createElement('b');h.textContent=q.type==='mancante'?`Carta coperta ${q.k>1?i+1:''}`.trim():`Carta da aggiungere ${i+1}`;
+    const pv=document.createElement('div');pv.className='pv';pv.id=`qpv-${i}`;
+    const g=document.createElement('div');g.className='sel';
+    ATTR.forEach(([lab,opts],j)=>{const sel=document.createElement('select');sel.id=`qp-${i}-${j}`;sel.setAttribute('aria-label',`${lab}, carta ${i+1}`);
+      sel.append(new Option(lab,''),...opts.map((o,v)=>new Option(o,String(v))));
+      sel.onchange=()=>{const v=[0,1,2,3].map(k=>$(`qp-${i}-${k}`).value);const id=v.every(x=>x!=='')?v.join(''):null;if(id||qLast[i])qact({type:'q-prop',i,id})};g.append(sel)});
+    sl.append(h,pv,g);return sl}))}
+  q.prop.forEach((id,i)=>{
+    if(id!==qLast[i]){const prev=qLast[i];qLast[i]=id;if(id)[0,1,2,3].forEach(k=>{$(`qp-${i}-${k}`).value=id[k]});else if(prev)[0,1,2,3].forEach(k=>{$(`qp-${i}-${k}`).value=''})}
+    const pv=$(`qpv-${i}`);if(id)pv.innerHTML=cardSVG(id);else pv.textContent='?';
+  });
+}
 $('stopNo').onclick=()=>{$('stopConfirm').hidden=true};
 $('stopYes').onclick=()=>{$('stopConfirm').hidden=true;finish('Gara interrotta','interrotta')};
 

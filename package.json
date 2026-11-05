@@ -3,6 +3,6 @@
   "version": "1.0.0",
   "description": "Gara SET di squadra: prova di velocità della semifinale per più dispositivi",
   "private": true,
-  "scripts": { "start": "node server.js" },
+  "scripts": { "start": "node server.js", "test": "node test.js" },
   "engines": { "node": ">=18" }
 }
